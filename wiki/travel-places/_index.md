@@ -1,0 +1,23 @@
+# Travel & Places
+20 words
+
+- [[travel-places/accessible|accessible]]
+- [[travel-places/arid|arid]]
+- [[travel-places/archipelago|archipelago]]
+- [[travel-places/commute|commute]]
+- [[travel-places/cosmopolitan|cosmopolitan]]
+- [[travel-places/emigrate|emigrate]]
+- [[travel-places/excursion|excursion]]
+- [[travel-places/expatriate|expatriate]]
+- [[travel-places/heritage-site|heritage site]]
+- [[travel-places/humid|humid]]
+- [[travel-places/itinerary|itinerary]]
+- [[travel-places/landmark|landmark]]
+- [[travel-places/layover|layover]]
+- [[travel-places/peninsula|peninsula]]
+- [[travel-places/resort|resort]]
+- [[travel-places/rural|rural]]
+- [[travel-places/suburban|suburban]]
+- [[travel-places/terrain|terrain]]
+- [[travel-places/transit|transit]]
+- [[travel-places/urban|urban]]
