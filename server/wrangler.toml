@@ -1,0 +1,16 @@
+name = "spelling-server"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Create the real namespace once you're logged in:
+#   wrangler kv namespace create VOCAB
+# then paste the returned id below (replaces the placeholder).
+[[kv_namespaces]]
+binding = "VOCAB"
+id = "REPLACE_AFTER_wrangler_kv_namespace_create"
+
+# Non-secret config. Secrets are set separately and never committed:
+#   wrangler secret put MW_KEY      (your Merriam-Webster Learner's key)
+#   wrangler secret put API_TOKEN   (a long random string the clients send)
+[vars]
+MW_REF = "learners"

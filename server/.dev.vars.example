@@ -1,0 +1,3 @@
+# Copy to `.dev.vars` (gitignored) for local `wrangler dev`.
+MW_KEY=your-merriam-webster-learners-dictionary-key
+API_TOKEN=choose-a-long-random-string

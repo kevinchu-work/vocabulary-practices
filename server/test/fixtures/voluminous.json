@@ -1,0 +1,53 @@
+[
+  {
+    "meta": {
+      "id": "voluminous",
+      "uuid": "5f1d4b1a-0000-0000-0000-000000000000",
+      "src": "learners",
+      "section": "alpha",
+      "stems": ["voluminous", "voluminously", "voluminousness"],
+      "offensive": false
+    },
+    "hwi": {
+      "hw": "vo*lu*mi*nous",
+      "prs": [
+        { "mw": "vəˈluːmənəs", "sound": { "audio": "volumi01" } }
+      ]
+    },
+    "fl": "adjective",
+    "def": [
+      {
+        "sseq": [
+          [
+            [
+              "sense",
+              {
+                "sn": "1",
+                "dt": [
+                  ["text", "{bc}having or containing a large amount"],
+                  ["vis", [{ "t": "She wore a {it}voluminous{/it} skirt." }, { "t": "a {it}voluminous{/it} coat" }]]
+                ]
+              }
+            ]
+          ],
+          [
+            [
+              "sense",
+              {
+                "sn": "2",
+                "dt": [
+                  ["text", "{bc}consisting of many folds or coils"],
+                  ["vis", [{ "t": "{it}voluminous{/it} clouds of smoke" }]]
+                ]
+              }
+            ]
+          ]
+        ]
+      }
+    ],
+    "shortdef": [
+      "having or containing a large amount",
+      "consisting of many folds or coils"
+    ]
+  }
+]
