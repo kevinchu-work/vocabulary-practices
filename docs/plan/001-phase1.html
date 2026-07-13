@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 001 — Phase 1 Implementation</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         max-width: 860px; margin: 2rem auto; padding: 0 1.2rem; }
+  h1 { font-size: 1.7rem; margin-bottom: .2rem; }
+  h2 { margin-top: 2rem; border-bottom: 1px solid #8883; padding-bottom: .3rem; }
+  h3 { margin-top: 1.4rem; }
+  .meta { color: #888; font-size: .9rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #8884; padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: #8881; }
+  code { background: #8882; padding: .1rem .35rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #8881; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: .85rem; line-height: 1.4; }
+  .verify { color: #2e7d32; font-weight: 600; }
+  .owner { background: #f9a82533; border-left: 4px solid #f9a825; padding: .3rem .8rem; }
+  ul { margin: .4rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Plan 001 — Phase 1 Implementation</h1>
+<p class="meta">Date: 2026-07-12 &nbsp;·&nbsp; Implements <code>docs/decision/001-stack.html</code> &nbsp;·&nbsp; Status: not started (docs only)</p>
+
+<h2>Goal</h2>
+<p>
+A working single-user loop: <strong>look up a word on macOS → save it to the server → practise
+spelling it in the browser</strong>. Definitions and examples come from Merriam-Webster's Learner's
+Dictionary; the server is a Cloudflare Worker backed by Workers KV.
+</p>
+
+<h2>Architecture</h2>
+<pre>
+ macOS menu-bar app ──HTTPS + bearer key──▶  Cloudflare Worker  ──server-side MW key──▶  MW Learner's API
+   (hotkey → capture                              │   │
+    selected text)                                │   └──▶  Workers KV
+                                                  │           • def:&lt;word&gt;   cached lookups (30-day TTL)
+                                                  │           • word:&lt;word&gt;  saved vocabulary
+                                                  └──▶  serves the Practice web page at  /
+</pre>
+
+<h2>Components</h2>
+<table>
+  <tr><th>#</th><th>Component</th><th>Tech</th></tr>
+  <tr><td>1</td><td>API + static page host</td><td>Cloudflare Worker (TypeScript), Wrangler 4</td></tr>
+  <tr><td>2</td><td>Storage</td><td>Workers KV (one namespace, key prefixes <code>def:</code> / <code>word:</code>)</td></tr>
+  <tr><td>3</td><td>Practice web page</td><td>Vanilla HTML/CSS/JS, served at <code>/</code></td></tr>
+  <tr><td>4</td><td>macOS front-end</td><td>SwiftPM executable, SwiftUI <code>MenuBarExtra</code>, <code>KeyboardShortcuts</code> lib, packaged as a <code>.app</code></td></tr>
+</table>
+
+<h2>API surface</h2>
+<table>
+  <tr><th>Method &amp; path</th><th>Behaviour</th></tr>
+  <tr><td><code>GET /lookup?word=</code></td><td>Check <code>def:&lt;word&gt;</code> in KV; on miss call MW, normalise, cache (30-day TTL), return <code>{word, definitions[], examples[], pronunciation}</code>.</td></tr>
+  <tr><td><code>POST /words</code></td><td>Body <code>{word}</code>. Reuse cached lookup, store <code>word:&lt;word&gt;</code>.</td></tr>
+  <tr><td><code>GET /words</code></td><td>List saved words via KV prefix scan on <code>word:</code>.</td></tr>
+  <tr><td><code>DELETE /words/:word</code></td><td>Remove a saved word.</td></tr>
+  <tr><td><code>POST /practice/result</code></td><td>Body <code>{word, correct}</code>. Increment <code>timesPracticed</code>, record <code>lastCorrect</code>.</td></tr>
+  <tr><td><code>GET /</code></td><td>Serve the practice web page.</td></tr>
+</table>
+<p>All API routes require an <code>Authorization: Bearer &lt;token&gt;</code> header (single shared secret, stored as a Worker secret).</p>
+
+<h2>Data model (KV)</h2>
+<pre>
+def:&lt;word&gt;   → { word, definitions[], examples[], pronunciation }        // lookup cache, TTL 30d
+word:&lt;word&gt;  → { word, definition, examples[], savedAt,                  // saved vocabulary
+                 timesPracticed, lastCorrect }
+</pre>
+<p>No separate index is needed — saved words are enumerated with a <code>word:</code> prefix list.</p>
+
+<h2>Build order &amp; verification</h2>
+<p>Backend first (testable with <code>curl</code> alone); native UI last.</p>
+
+<h3>Step 1 — Worker skeleton + KV + auth + <code>/lookup</code></h3>
+<ul>
+  <li>Scaffold Worker, bind a KV namespace, add bearer-token middleware.</li>
+  <li>Implement MW Learner's fetch + normaliser (extract definitions and <code>vis</code> example sentences) + KV caching.</li>
+  <li class="verify">Verify: <code>curl</code> returns normalised JSON for a word; a second call is served from cache (log/timing confirms cache hit).</li>
+</ul>
+
+<h3>Step 2 — Save / list / delete / practice-result</h3>
+<ul>
+  <li>Implement <code>POST/GET/DELETE /words</code> and <code>POST /practice/result</code>.</li>
+  <li class="verify">Verify: <code>curl</code> round-trip saves and lists a word; <code>wrangler kv key list</code> shows the <code>word:</code> entry; practice-result mutates the counters.</li>
+</ul>
+
+<h3>Step 3 — Practice web page at <code>/</code></h3>
+<ul>
+  <li>Vanilla page: pull <code>GET /words</code>, show a word's definition/example with the word hidden, accept typed input, score, and POST the result.</li>
+  <li class="verify">Verify: open in a browser, practise a few saved words, confirm scores/counters update server-side.</li>
+</ul>
+
+<h3>Step 4 — macOS menu-bar app</h3>
+<ul>
+  <li>SwiftPM executable with <code>MenuBarExtra</code>; register a global hotkey via <code>KeyboardShortcuts</code>.</li>
+  <li>On hotkey: simulate ⌘C, read <code>NSPasteboard</code>, call <code>GET /lookup</code>, render definition in a popover with a <strong>Save</strong> button → <code>POST /words</code>.</li>
+  <li>Package as a <code>.app</code> bundle (<code>LSUIElement</code>/accessory policy) via a small build script.</li>
+  <li class="verify">Verify: select a word in TextEdit, press the hotkey, see the definition, click Save, and confirm it appears in <code>GET /words</code> and on the practice page.</li>
+</ul>
+
+<h2>Manual steps you own</h2>
+<div class="owner">
+<ul>
+  <li><strong>Cloudflare</strong>: run <code>wrangler login</code> (interactive) once.</li>
+  <li><strong>Merriam-Webster</strong>: register at dictionaryapi.com and obtain a free <em>Learner's Dictionary</em> key; provide it so it can be set as a Worker secret (<code>wrangler secret put MW_KEY</code>).</li>
+  <li><strong>Shared API token</strong>: pick a secret string for the bearer token (set via <code>wrangler secret put API_TOKEN</code>).</li>
+  <li><strong>macOS Accessibility</strong>: grant the menu-bar app Accessibility access in System Settings when prompted (needed to read the selected text).</li>
+</ul>
+</div>
+
+<h2>Risks &amp; mitigations</h2>
+<table>
+  <tr><th>Risk</th><th>Mitigation</th></tr>
+  <tr><td>MW free quota (1,000/day)</td><td>KV cache on <code>def:</code> — repeated words never re-hit MW.</td></tr>
+  <tr><td>MW markup tokens in responses</td><td>Dedicated normaliser; unit-test against a couple of sample payloads.</td></tr>
+  <tr><td>Accessibility permission resets on rebuild</td><td>Stable bundle id + build path; re-grant is a one-click step. Document it.</td></tr>
+  <tr><td>Reading selection via ⌘C clobbers clipboard</td><td>Save &amp; restore previous clipboard contents around the copy.</td></tr>
+</table>
+
+<h2>Out of scope for Phase 1</h2>
+<ul>
+  <li>Multi-user accounts / real auth (single static token only).</li>
+  <li>Audio pronunciation playback (MW provides it — a Phase-2 add).</li>
+  <li>Spaced-repetition scheduling / analytics.</li>
+  <li>Code signing, notarisation, and distribution of the Mac app (dev build only).</li>
+  <li>iOS / mobile clients.</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 001 — Phase 1 Implementation Summary</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         max-width: 880px; margin: 2rem auto; padding: 0 1.2rem; }
+  h1 { font-size: 1.7rem; margin-bottom: .2rem; }
+  h2 { margin-top: 2rem; border-bottom: 1px solid #8883; padding-bottom: .3rem; }
+  h3 { margin-top: 1.3rem; }
+  .meta { color: #888; font-size: .9rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #8884; padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: #8881; }
+  code { background: #8882; padding: .1rem .35rem; border-radius: 3px; font-size: .9em; }
+  pre { background: #8881; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: .85rem; line-height: 1.45; }
+  .done { color: #2e9e4f; font-weight: 600; }
+  .open { color: #c9820a; font-weight: 600; }
+  .owner { background: #f9a82533; border-left: 4px solid #f9a825; padding: .3rem .9rem; }
+  ul { margin: .4rem 0; }
+  li { margin: .2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Plan 001 — Phase 1 Implementation Summary</h1>
+<p class="meta">Date: 2026-07-12 &nbsp;·&nbsp; Implements <code>docs/plan/001-phase1.html</code> &nbsp;·&nbsp; Status: <span class="done">code-complete, offline-verified</span> — live deploy pending your credentials</p>
+
+<h2>What was built</h2>
+<pre>
+spelling/
+  server/                     Cloudflare Worker (Steps 1–3)
+    src/index.ts              router, bearer auth, KV caching, all endpoints
+    src/mw.ts                 Merriam-Webster client + response normaliser
+    src/auth.ts               bearer-token check
+    src/page.ts               the practice web page (served at GET /)
+    test/                     vitest: mw.test.ts + index.test.ts (+ fixtures)
+    wrangler.toml             KV binding + non-secret vars
+    .dev.vars.example         template for local secrets
+  mac-app/                    macOS menu-bar app (Step 4)
+    Package.swift             SwiftPM executable, no external deps
+    Sources/SpellingLookup/   AppDelegate, HotKey (Carbon), SelectionReader,
+                              ApiClient, LookupModel, ContentView, main
+    build-app.sh              builds + wraps into SpellingLookup.app
+</pre>
+
+<h2>Verification status</h2>
+<p>Everything that can be proven without live credentials has been proven; the live paths remain open by design.</p>
+<table>
+  <tr><th>What</th><th>Status</th><th>Evidence</th></tr>
+  <tr><td>MW response parsing (definitions, examples, pronunciation, not-found suggestions)</td><td class="done">Verified</td><td>Unit tests against a schema-grounded fixture</td></tr>
+  <tr><td>Bearer auth, KV caching (2nd lookup skips MW), save / list / delete / practice-result</td><td class="done">Verified</td><td>Integration tests calling <code>worker.fetch</code> with in-memory KV + mocked MW — 10/10 passing</td></tr>
+  <tr><td>Server TypeScript</td><td class="done">Clean</td><td><code>tsc --noEmit</code> exits 0</td></tr>
+  <tr><td>Mac app compiles, links, packages</td><td class="done">Verified</td><td><code>build-app.sh</code> produces a valid <code>SpellingLookup.app</code> (lint-clean Info.plist)</td></tr>
+  <tr><td>Live lookup against real Merriam-Webster</td><td class="open">Open</td><td>Needs your MW key — see go-live checklist</td></tr>
+  <tr><td>Deployed Worker + real Workers KV; <code>curl</code> cache-hit test</td><td class="open">Open</td><td>Needs <code>wrangler login</code></td></tr>
+  <tr><td>End-to-end: hotkey → lookup → save → practice</td><td class="open">Open</td><td>Needs a running server + Accessibility grant</td></tr>
+</table>
+
+<h2>Deviations from the plan / decision (and why)</h2>
+<table>
+  <tr><th>Planned</th><th>Built</th><th>Reason</th></tr>
+  <tr><td>Definitions from the sense tree</td><td>Top-level <code>shortdef</code>, with a <code>dt</code>→<code>text</code> fallback</td><td>Robust and simple; confirmed present in MW's documented schema</td></tr>
+  <tr><td>SwiftUI <code>MenuBarExtra</code></td><td><code>NSStatusItem</code> + <code>NSPopover</code> (SwiftUI content)</td><td>A <code>MenuBarExtra</code> panel can't be reliably opened from a global hotkey</td></tr>
+  <tr><td><code>KeyboardShortcuts</code> library for the hotkey</td><td>Dependency-free Carbon <code>RegisterEventHotKey</code>; hotkey fixed at <strong>⌘⇧L</strong></td><td>The library's <code>#Preview</code> macro needs full Xcode; only Command Line Tools are installed. Rebindable UI is a Phase-2 nicety.</td></tr>
+  <tr><td>—</td><td>SwiftPM builds to <code>$TMPDIR/spelling-build</code></td><td><code>~/Documents</code> is iCloud-synced; SwiftPM's SQLite <code>build.db</code> throws "disk I/O error" there</td></tr>
+</table>
+
+<h2>Go-live checklist (your interactive steps)</h2>
+<div class="owner">
+<h3>1. Server</h3>
+<pre>
+cd server
+wrangler login                          # interactive OAuth
+wrangler kv namespace create VOCAB      # paste the returned id into wrangler.toml
+wrangler secret put MW_KEY              # your Merriam-Webster Learner's key
+wrangler secret put API_TOKEN           # a long random string (also used by the app + page)
+wrangler deploy
+# verify Step 1's live criterion:
+curl -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+     "https://&lt;your-worker&gt;.workers.dev/lookup?word=voluminous"     # 2nd call = cache hit
+</pre>
+<p><strong>Run this <code>curl</code> first — it is the gate.</strong> The offline tests mock MW, so they can't confirm the live <code>learners</code> URL path. If this returns real definitions, the server is good and any later problem is app-side. If it 404s or returns empty, it's the MW ref path or key — not the Mac app; don't debug Swift for it.</p>
+<h3>2. Mac app</h3>
+<pre>
+cd mac-app
+./build-app.sh
+open build/SpellingLookup.app
+# Grant Accessibility when prompted (System Settings ▸ Privacy &amp; Security ▸ Accessibility)
+# Click the menu-bar icon ▸ gear ▸ enter Worker URL + API token
+# Select a word anywhere, press ⌘⇧L, then Save
+</pre>
+<h3>3. Practice page</h3>
+<pre>
+open https://&lt;your-worker&gt;.workers.dev/     # enter the same API token once
+</pre>
+</div>
+
+<h2>Known Phase-1 limitations (by design)</h2>
+<ul>
+  <li>Single static bearer token — not real multi-user auth.</li>
+  <li>Hotkey fixed at ⌘⇧L (no in-app rebind UI).</li>
+  <li>Reading the selection uses synthetic ⌘C; the clipboard is saved and restored around it.</li>
+  <li>Unsigned dev build — macOS may re-prompt for Accessibility after a rebuild.</li>
+  <li>No audio pronunciation playback yet (MW provides the data — a Phase-2 add).</li>
+</ul>
+
+</body>
+</html>
