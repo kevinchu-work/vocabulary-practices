@@ -1,2 +1,5 @@
 .DS_Store
 *.log
+
+# Local pnpm content-addressable store (should live outside the repo)
+.pnpm-store/
