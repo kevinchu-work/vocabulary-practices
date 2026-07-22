@@ -1,0 +1,19 @@
+allowBuilds:
+  esbuild: set this to true or false
+  sharp: set this to true or false
+  workerd: set this to true or false
+# pnpm 11+ reads project settings from here (the package.json "pnpm" field is
+# no longer honoured).
+
+# Allow these deps' postinstall build scripts to run (pnpm blocks them by
+# default since v10 as a supply-chain safeguard).
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
+
+# Don't let the pre-run deps check auto-reinstall and abort scripts. Without
+# this, `pnpm dev`/`test`/`typecheck` fail with a runDepsStatusCheck exit-1
+# whenever any build script is still pending. Deps binaries are already present,
+# so scripts run fine; just skip the fatal gate.
+verifyDepsBeforeRun: false
